@@ -7,18 +7,20 @@ if (empty($_SESSION['admin_logged_in'])) {
 	exit;
 }
 
-
+$page_title = 'إدارة الطلاب';
+include 'includes/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>لوحة تحكم الطلاب - سكاي أكاديمي</title>
-</head>
-<body>
-    <h1>لوحة تحكم الطلاب</h1>
-    <p>مرحبًا بك في لوحة تحكم الطلاب الخاصة بسكاي أكاديمي.</p>
-      
-</body>
-</html>
+
+<?php include 'includes/sidebar.php'; ?>
+
+<!-- Main Content -->
+<div class="lg:mr-64">
+    <?php include 'includes/navbar.php'; ?>
+    
+    <!-- Page Content -->
+    <main class="pt-20 min-h-screen">
+        <h1 class="text-3xl font-bold mb-6">إدارة الطلاب</h1>
+        
+        <?php include 'includes/footer.php'; ?>
+    </main>
+</div>

@@ -7,7 +7,90 @@ if (empty($_SESSION['admin_logged_in'])) {
 	exit;
 }
 
+include 'includes/api_helper.php';
+
 $page_title = 'إدارة المعلمين';
+$endpoint = 'https://qxkyfdasymxphjjzxwfn.supabase.co/functions/v1/teachers-admin';
+$token = $_SESSION['admin_token'] ?? null;
+
+$error = '';
+$success = '';
+
+// Handle Delete Action
+if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+    $delete_url = $endpoint . '?id=' . $_GET['id'];
+    $response = api_request('DELETE', $delete_url, $token);
+
+    if ($response['http_code'] === 200) {
+        $success = 'تم حذف المعلم بنجاح.';
+    } else {
+        $error = 'فشل حذف المعلم: ' . ($response['data']['error'] ?? 'خطأ غير معروف.');
+    }
+}
+
+// Handle Add/Edit Action
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $id = $_POST['id'] ?? null;
+    $full_name = $_POST['full_name'] ?? '';
+    $bio = $_POST['bio'] ?? '';
+
+    $payload = [
+        'full_name' => $full_name,
+        'bio' => $bio,
+    ];
+
+    // Handle Image Upload
+    if (isset($_FILES['profile_image']) && $_FILES['profile_image']['error'] === UPLOAD_ERR_OK) {
+        $image_tmp_path = $_FILES['profile_image']['tmp_name'];
+        $image_mime_type = mime_content_type($image_tmp_path);
+        $image_base64 = base64_encode(file_get_contents($image_tmp_path));
+        
+        $payload['image_base64'] = $image_base64;
+        $payload['image_mime_type'] = $image_mime_type;
+        $payload['image_file_name'] = basename($_FILES['profile_image']['name']);
+    }
+
+    if ($id) {
+        // Update
+        $url = $endpoint . '?id=' . $id;
+        $response = api_request('PUT', $url, $token, $payload);
+        if ($response['http_code'] === 200 && !empty($response['data'])) {
+            $success = 'تم تحديث المعلم بنجاح.';
+        } else {
+            $error = 'فشل تحديث المعلم: ' . ($response['data']['error'] ?? ($response['raw_response'] ?? 'خطأ غير معروف.'));
+        }
+    } else {
+        // Create
+        $response = api_request('POST', $endpoint, $token, $payload);
+        if ($response['http_code'] === 200 && !empty($response['data'])) {
+            $success = 'تمت إضافة المعلم بنجاح.';
+        } else {
+            $error = 'فشل إضافة المعلم: ' . ($response['data']['error'] ?? ($response['raw_response'] ?? 'خطأ غير معروف.'));
+        }
+    }
+}
+
+// Fetch all teachers
+$teachers_response = api_request('GET', $endpoint, $token);
+$teachers = [];
+if ($teachers_response['http_code'] === 200) {
+    $teachers = $teachers_response['data'];
+} else {
+    $error = 'فشل في جلب المعلمين: ' . ($teachers_response['data']['error'] ?? ($teachers_response['raw_response'] ?? 'خطأ غير معروف.'));
+}
+
+// Get teacher to edit
+$edit_teacher = null;
+if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) {
+    $edit_url = $endpoint . '?id=' . $_GET['id'];
+    $response = api_request('GET', $edit_url, $token);
+    if ($response['http_code'] === 200 && !empty($response['data'])) {
+        $edit_teacher = $response['data'];
+    } else {
+        $error = 'لم يتم العثور على المعلم.';
+    }
+}
+
 include 'includes/header.php';
 ?>
 
@@ -18,348 +101,96 @@ include 'includes/header.php';
     <?php include 'includes/navbar.php'; ?>
     
     <!-- Page Content -->
-    <main class="pt-20 min-h-screen">
+    <main class="pt-20 min-h-screen bg-gray-50">
         <div class="p-4 lg:p-8">
-            <!-- Page Header -->
-            <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between">
-                <div class="mb-4 md:mb-0">
-                    <h1 class="text-3xl font-bold text-gray-900 mb-2">إدارة المعلمين</h1>
-                    <p class="text-gray-600">إدارة جميع المعلمين والمدرسين في المنصة</p>
+            <h1 class="text-3xl font-bold mb-6">إدارة المعلمين</h1>
+
+            <?php if ($error): ?>
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                    <strong class="font-bold">خطأ!</strong>
+                    <span class="block sm:inline"><?php echo htmlspecialchars($error); ?></span>
                 </div>
-                <button class="flex items-center space-x-2 space-x-reverse bg-primary-600 hover:bg-primary-700 text-white rounded-lg py-3 px-6 font-medium transition-colors">
-                    <i class="fas fa-user-plus"></i>
-                    <span>إضافة معلم جديد</span>
-                </button>
+            <?php endif; ?>
+
+            <?php if ($success): ?>
+                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+                    <strong class="font-bold">نجاح!</strong>
+                    <span class="block sm:inline"><?php echo htmlspecialchars($success); ?></span>
+                </div>
+            <?php endif; ?>
+
+            <!-- Add/Edit Form -->
+            <div class="bg-white p-6 rounded-lg shadow-md mb-8">
+                <h2 class="text-2xl font-bold mb-4"><?php echo $edit_teacher ? 'تعديل معلم' : 'إضافة معلم جديد'; ?></h2>
+                <form method="post" action="teachers.php" enctype="multipart/form-data">
+                    <input type="hidden" name="id" value="<?php echo $edit_teacher['id'] ?? ''; ?>">
+                    
+                    <div class="mb-4">
+                        <label for="full_name" class="block text-gray-700 font-bold mb-2">الاسم الكامل</label>
+                        <input type="text" id="full_name" name="full_name" value="<?php echo htmlspecialchars($edit_teacher['full_name'] ?? ''); ?>" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline" required>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="bio" class="block text-gray-700 font-bold mb-2">نبذة تعريفية</label>
+                        <textarea id="bio" name="bio" rows="4" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"><?php echo htmlspecialchars($edit_teacher['bio'] ?? ''); ?></textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="profile_image" class="block text-gray-700 font-bold mb-2">صورة الملف الشخصي</label>
+                        <input type="file" id="profile_image" name="profile_image" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        <?php if (isset($edit_teacher['profile_image_url'])): ?>
+                            <img src="<?php echo htmlspecialchars($edit_teacher['profile_image_url']); ?>" alt="Profile Image" class="mt-2 h-24 w-24 object-cover rounded-full">
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="flex items-center justify-between">
+                        <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                            <?php echo $edit_teacher ? 'تحديث المعلم' : 'إضافة معلم'; ?>
+                        </button>
+                        <?php if ($edit_teacher): ?>
+                            <a href="teachers.php" class="text-gray-600 hover:text-gray-800">إلغاء التعديل</a>
+                        <?php endif; ?>
+                    </div>
+                </form>
             </div>
-            
-            <!-- Stats Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-600 mb-1">إجمالي المعلمين</p>
-                            <h3 class="text-2xl font-bold text-gray-900">48</h3>
-                        </div>
-                        <div class="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-chalkboard-teacher text-purple-600 text-xl"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-600 mb-1">معلمون نشطون</p>
-                            <h3 class="text-2xl font-bold text-green-600">42</h3>
-                        </div>
-                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-user-check text-green-600 text-xl"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-600 mb-1">دورات مدارة</p>
-                            <h3 class="text-2xl font-bold text-blue-600">76</h3>
-                        </div>
-                        <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-book-open text-blue-600 text-xl"></i>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm text-gray-600 mb-1">متوسط التقييم</p>
-                            <h3 class="text-2xl font-bold text-orange-600">4.8</h3>
-                        </div>
-                        <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                            <i class="fas fa-star text-orange-600 text-xl"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Table Card -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-                <!-- Table Header with Search and Filters -->
-                <div class="p-6 border-b border-gray-200">
-                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-                        <!-- Search -->
-                        <div class="relative flex-1 max-w-md">
-                            <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                                <i class="fas fa-search text-gray-400"></i>
-                            </div>
-                            <input type="text" 
-                                   placeholder="البحث عن معلم..." 
-                                   class="w-full bg-gray-50 border border-gray-200 rounded-lg py-2.5 pr-10 pl-4 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
-                        </div>
-                        
-                        <!-- Filters -->
-                        <div class="flex items-center space-x-3 space-x-reverse">
-                            <select class="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-500">
-                                <option>التخصص: الكل</option>
-                                <option>تطوير الويب</option>
-                                <option>البرمجة</option>
-                                <option>التصميم</option>
-                                <option>التسويق</option>
-                            </select>
-                            
-                            <button class="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 hover:bg-gray-100 transition-colors">
-                                <i class="fas fa-filter text-gray-600"></i>
-                            </button>
-                            
-                            <button class="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 hover:bg-gray-100 transition-colors">
-                                <i class="fas fa-download text-gray-600"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Table -->
+
+            <!-- Teachers Table -->
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-2xl font-bold mb-4">قائمة المعلمين</h2>
                 <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50 border-b border-gray-200">
+                    <table class="min-w-full bg-white">
+                        <thead class="bg-gray-800 text-white">
                             <tr>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                    <input type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
-                                </th>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">المعلم</th>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">التخصص</th>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">عدد الدورات</th>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">عدد الطلاب</th>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">التقييم</th>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">الحالة</th>
-                                <th class="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">الإجراءات</th>
+                                <th class="text-right py-3 px-4 uppercase font-semibold text-sm">الصورة</th>
+                                <th class="text-right py-3 px-4 uppercase font-semibold text-sm">الاسم الكامل</th>
+                                <th class="text-right py-3 px-4 uppercase font-semibold text-sm">نبذة تعريفية</th>
+                                <th class="text-right py-3 px-4 uppercase font-semibold text-sm">الإجراءات</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200">
-                            <!-- Row 1 -->
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-6 py-4">
-                                    <input type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-3 space-x-reverse">
-                                        <div class="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                            أ
-                                        </div>
-                                        <div>
-                                            <p class="font-medium text-gray-900">د. أحمد السيد</p>
-                                            <p class="text-sm text-gray-500">ahmed.elsayed@example.com</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                        تطوير الويب
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-gray-700 font-medium">12 دورة</td>
-                                <td class="px-6 py-4 text-gray-700 font-medium">324 طالب</td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-1 space-x-reverse">
-                                        <i class="fas fa-star text-yellow-400"></i>
-                                        <span class="text-gray-900 font-medium">4.9</span>
-                                        <span class="text-gray-500 text-sm">(156)</span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <i class="fas fa-circle text-[6px] ml-2"></i>
-                                        نشط
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-2 space-x-reverse">
-                                        <button class="p-2 hover:bg-blue-50 rounded-lg transition-colors" title="عرض">
-                                            <i class="fas fa-eye text-blue-600"></i>
-                                        </button>
-                                        <button class="p-2 hover:bg-green-50 rounded-lg transition-colors" title="تعديل">
-                                            <i class="fas fa-edit text-green-600"></i>
-                                        </button>
-                                        <button class="p-2 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
-                                            <i class="fas fa-trash text-red-600"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            
-                            <!-- Row 2 -->
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-6 py-4">
-                                    <input type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-3 space-x-reverse">
-                                        <div class="w-10 h-10 bg-gradient-to-br from-pink-500 to-pink-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                            م
-                                        </div>
-                                        <div>
-                                            <p class="font-medium text-gray-900">د. مريم عبدالله</p>
-                                            <p class="text-sm text-gray-500">mariam@example.com</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                        تطوير التطبيقات
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-gray-700 font-medium">8 دورات</td>
-                                <td class="px-6 py-4 text-gray-700 font-medium">256 طالب</td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-1 space-x-reverse">
-                                        <i class="fas fa-star text-yellow-400"></i>
-                                        <span class="text-gray-900 font-medium">4.8</span>
-                                        <span class="text-gray-500 text-sm">(128)</span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <i class="fas fa-circle text-[6px] ml-2"></i>
-                                        نشط
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-2 space-x-reverse">
-                                        <button class="p-2 hover:bg-blue-50 rounded-lg transition-colors" title="عرض">
-                                            <i class="fas fa-eye text-blue-600"></i>
-                                        </button>
-                                        <button class="p-2 hover:bg-green-50 rounded-lg transition-colors" title="تعديل">
-                                            <i class="fas fa-edit text-green-600"></i>
-                                        </button>
-                                        <button class="p-2 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
-                                            <i class="fas fa-trash text-red-600"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            
-                            <!-- Row 3 -->
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-6 py-4">
-                                    <input type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-3 space-x-reverse">
-                                        <div class="w-10 h-10 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                            خ
-                                        </div>
-                                        <div>
-                                            <p class="font-medium text-gray-900">د. خالد محمد</p>
-                                            <p class="text-sm text-gray-500">khaled@example.com</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        الذكاء الاصطناعي
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-gray-700 font-medium">6 دورات</td>
-                                <td class="px-6 py-4 text-gray-700 font-medium">198 طالب</td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-1 space-x-reverse">
-                                        <i class="fas fa-star text-yellow-400"></i>
-                                        <span class="text-gray-900 font-medium">5.0</span>
-                                        <span class="text-gray-500 text-sm">(94)</span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <i class="fas fa-circle text-[6px] ml-2"></i>
-                                        نشط
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-2 space-x-reverse">
-                                        <button class="p-2 hover:bg-blue-50 rounded-lg transition-colors" title="عرض">
-                                            <i class="fas fa-eye text-blue-600"></i>
-                                        </button>
-                                        <button class="p-2 hover:bg-green-50 rounded-lg transition-colors" title="تعديل">
-                                            <i class="fas fa-edit text-green-600"></i>
-                                        </button>
-                                        <button class="p-2 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
-                                            <i class="fas fa-trash text-red-600"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                            
-                            <!-- Row 4 -->
-                            <tr class="hover:bg-gray-50 transition-colors">
-                                <td class="px-6 py-4">
-                                    <input type="checkbox" class="rounded border-gray-300 text-primary-600 focus:ring-primary-500">
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-3 space-x-reverse">
-                                        <div class="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center text-white font-semibold">
-                                            ن
-                                        </div>
-                                        <div>
-                                            <p class="font-medium text-gray-900">أ. نورا حسن</p>
-                                            <p class="text-sm text-gray-500">nora@example.com</p>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-pink-100 text-pink-800">
-                                        التصميم الجرافيكي
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4 text-gray-700 font-medium">10 دورات</td>
-                                <td class="px-6 py-4 text-gray-700 font-medium">167 طالب</td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-1 space-x-reverse">
-                                        <i class="fas fa-star text-yellow-400"></i>
-                                        <span class="text-gray-900 font-medium">4.7</span>
-                                        <span class="text-gray-500 text-sm">(82)</span>
-                                    </div>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                        <i class="fas fa-circle text-[6px] ml-2"></i>
-                                        نشط
-                                    </span>
-                                </td>
-                                <td class="px-6 py-4">
-                                    <div class="flex items-center space-x-2 space-x-reverse">
-                                        <button class="p-2 hover:bg-blue-50 rounded-lg transition-colors" title="عرض">
-                                            <i class="fas fa-eye text-blue-600"></i>
-                                        </button>
-                                        <button class="p-2 hover:bg-green-50 rounded-lg transition-colors" title="تعديل">
-                                            <i class="fas fa-edit text-green-600"></i>
-                                        </button>
-                                        <button class="p-2 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
-                                            <i class="fas fa-trash text-red-600"></i>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
+                        <tbody class="text-gray-700">
+                            <?php if (!empty($teachers)): ?>
+                                <?php foreach ($teachers as $teacher): ?>
+                                    <tr>
+                                        <td class="text-right py-3 px-4">
+                                            <?php if (!empty($teacher['profile_image_url'])): ?>
+                                                <img src="<?php echo htmlspecialchars($teacher['profile_image_url']); ?>" alt="<?php echo htmlspecialchars($teacher['full_name']); ?>" class="h-12 w-12 object-cover rounded-full">
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-right py-3 px-4"><?php echo htmlspecialchars($teacher['full_name']); ?></td>
+                                        <td class="text-right py-3 px-4"><?php echo htmlspecialchars($teacher['bio']); ?></td>
+                                        <td class="text-right py-3 px-4">
+                                            <a href="teachers.php?action=edit&id=<?php echo $teacher['id']; ?>" class="text-blue-500 hover:text-blue-700">تعديل</a>
+                                            <a href="teachers.php?action=delete&id=<?php echo $teacher['id']; ?>" class="text-red-500 hover:text-red-700 ml-4" onclick="return confirm('هل أنت متأكد من رغبتك في حذف هذا المعلم؟');">حذف</a>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <tr>
+                                    <td colspan="4" class="text-center py-4">لا يوجد معلمين لعرضهم.</td>
+                                </tr>
+                            <?php endif; ?>
                         </tbody>
                     </table>
-                </div>
-                
-                <!-- Pagination -->
-                <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                    <div class="text-sm text-gray-600">
-                        عرض <span class="font-semibold">1</span> إلى <span class="font-semibold">4</span> من <span class="font-semibold">48</span> نتيجة
-                    </div>
-                    <div class="flex items-center space-x-2 space-x-reverse">
-                        <button class="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
-                        <button class="px-3 py-2 bg-primary-600 text-white rounded-lg">1</button>
-                        <button class="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">2</button>
-                        <button class="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">3</button>
-                        <button class="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>
