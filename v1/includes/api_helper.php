@@ -3,7 +3,7 @@
  * API Helper Functions
  * Handles all HTTP requests to Supabase Edge Functions
  */
-  
+
 /**
  * Make an API request to Supabase Edge Function
  * 
