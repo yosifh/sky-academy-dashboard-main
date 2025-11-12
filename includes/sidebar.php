@@ -55,6 +55,11 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <span class="mr-3 font-medium">الدورات</span>
                 </a>
             </li>
+            <li>
+                <a href="lectures.php" class="sidebar-link <?php echo $current_page === 'lectures.php' ? 'active' : ''; ?> flex items-center px-4 py-3 rounded-lg hover:bg-gray-100 group">
+                    <i class="fas fa-video w-6 text-gray-500 group-hover:text-primary-600"></i>
+                    <span class="mr-3 font-medium">المحاضرات</span>
+                </a>
             
             <!-- Gallery -->
             <li>
