@@ -239,6 +239,15 @@ $token = isset($_SESSION['admin_token']) ? $_SESSION['admin_token'] : '';
 
     let allCourses = []; // Store all courses for filtering
 
+    // Translate course type from English to Arabic
+    function translateCourseType(type) {
+        const translations = {
+            'online': 'إلكتروني',
+            'in_person': 'حضوري'
+        };
+        return translations[type] || type;
+    }
+
     // Filter courses based on search and type
     function filterCourses() {
         const searchTerm = document.getElementById('searchCourses').value.toLowerCase();
@@ -283,12 +292,12 @@ $token = isset($_SESSION['admin_token']) ? $_SESSION['admin_token'] : '';
             courseTypes.forEach(type => {
                 const option = document.createElement('option');
                 option.value = type.id;
-                option.textContent = type.name;
+                option.textContent = translateCourseType(type.name);
                 select.appendChild(option);
 
                 const filterOption = document.createElement('option');
                 filterOption.value = type.id;
-                filterOption.textContent = type.name;
+                filterOption.textContent = translateCourseType(type.name);
                 filterSelect.appendChild(filterOption);
             });
         } catch (error) {
@@ -525,7 +534,7 @@ $token = isset($_SESSION['admin_token']) ? $_SESSION['admin_token'] : '';
 
         courses.forEach(course => {
             const teachers = course.teachers ? course.teachers.map(t => t.full_name).join(', ') : 'لا يوجد';
-            const typeName = course.course_types ? course.course_types.name : course.course_type_id;
+            const typeName = course.course_types ? translateCourseType(course.course_types.name) : translateCourseType(course.course_type_id);
             const duration = course.duration_text || '-';
             const price = course.price ? parseFloat(course.price).toFixed(2) + ' دينار' : 'مجاني';
 
@@ -849,7 +858,7 @@ $token = isset($_SESSION['admin_token']) ? $_SESSION['admin_token'] : '';
             if (Array.isArray(courses) && courses.length > 0) {
                 const course = courses[0];
                 const teachers = course.teachers ? course.teachers.map(t => t.full_name).join(', ') : 'لا يوجد';
-                const typeName = course.course_types ? course.course_types.name : 'غير محدد';
+                const typeName = course.course_types ? translateCourseType(course.course_types.name) : 'غير محدد';
 
                 const modal = document.createElement('div');
                 modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';

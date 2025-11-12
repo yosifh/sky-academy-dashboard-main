@@ -9,7 +9,7 @@ if (empty($_SESSION['admin_logged_in'])) {
 
 include 'includes/api_helper.php';
 
-$page_title = 'إدارة المعلمين';
+$page_title = 'إدارة الأساتذة';
 $endpoint = 'https://qxkyfdasymxphjjzxwfn.supabase.co/functions/v1/teachers-admin';
 $token = $_SESSION['admin_token'] ?? null;
 
@@ -22,9 +22,9 @@ if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])
     $response = api_request('DELETE', $delete_url, $token);
 
     if ($response['http_code'] === 200) {
-        $success = 'تم حذف المعلم بنجاح.';
+        $success = 'تم حذف الأستاذ بنجاح.';
     } else {
-        $error = 'فشل حذف المعلم: ' . ($response['data']['error'] ?? 'خطأ غير معروف.');
+        $error = 'فشل حذف الأستاذ: ' . ($response['data']['error'] ?? 'خطأ غير معروف.');
     }
 }
 
@@ -55,17 +55,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $url = $endpoint . '?id=' . $id;
         $response = api_request('PUT', $url, $token, $payload);
         if ($response['http_code'] === 200 && !empty($response['data'])) {
-            $success = 'تم تحديث المعلم بنجاح.';
+            $success = 'تم تحديث الأستاذ بنجاح.';
         } else {
-            $error = 'فشل تحديث المعلم: ' . ($response['data']['error'] ?? ($response['raw_response'] ?? 'خطأ غير معروف.'));
+            $error = 'فشل تحديث الأستاذ: ' . ($response['data']['error'] ?? ($response['raw_response'] ?? 'خطأ غير معروف.'));
         }
     } else {
         // Create
         $response = api_request('POST', $endpoint, $token, $payload);
         if ($response['http_code'] === 200 && !empty($response['data'])) {
-            $success = 'تمت إضافة المعلم بنجاح.';
+            $success = 'تمت إضافة الأستاذ بنجاح.';
         } else {
-            $error = 'فشل إضافة المعلم: ' . ($response['data']['error'] ?? ($response['raw_response'] ?? 'خطأ غير معروف.'));
+            $error = 'فشل إضافة الأستاذ: ' . ($response['data']['error'] ?? ($response['raw_response'] ?? 'خطأ غير معروف.'));
         }
     }
 }
@@ -76,7 +76,7 @@ $teachers = [];
 if ($teachers_response['http_code'] === 200) {
     $teachers = $teachers_response['data'];
 } else {
-    $error = 'فشل في جلب المعلمين: ' . ($teachers_response['data']['error'] ?? ($teachers_response['raw_response'] ?? 'خطأ غير معروف.'));
+    $error = 'فشل في جلب الأساتذة: ' . ($teachers_response['data']['error'] ?? ($teachers_response['raw_response'] ?? 'خطأ غير معروف.'));
 }
 
 // Get teacher to edit
@@ -87,7 +87,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) 
     if ($response['http_code'] === 200 && !empty($response['data'])) {
         $edit_teacher = $response['data'];
     } else {
-        $error = 'لم يتم العثور على المعلم.';
+        $error = 'لم يتم العثور على الأستاذ.';
     }
 }
 
@@ -103,7 +103,7 @@ include 'includes/header.php';
     <!-- Page Content -->
     <main class="pt-20 min-h-screen bg-gray-50">
         <div class="p-4 lg:p-8">
-            <h1 class="text-3xl font-bold mb-6">إدارة المعلمين</h1>
+            <h1 class="text-3xl font-bold mb-6">إدارة الأساتذة</h1>
 
             <?php if ($error): ?>
                 <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
@@ -145,7 +145,7 @@ include 'includes/header.php';
 
                     <div class="flex items-center justify-between">
                         <button type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-                            <?php echo $edit_teacher ? 'تحديث المعلم' : 'إضافة معلم'; ?>
+                            <?php echo $edit_teacher ? 'تحديث الأستاذ' : 'إضافة معلم'; ?>
                         </button>
                         <?php if ($edit_teacher): ?>
                             <a href="teachers.php" class="text-gray-600 hover:text-gray-800">إلغاء التعديل</a>
@@ -156,7 +156,7 @@ include 'includes/header.php';
 
             <!-- Teachers Table -->
             <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-2xl font-bold mb-4">قائمة المعلمين</h2>
+                <h2 class="text-2xl font-bold mb-4">قائمة الأساتذة</h2>
                 <div class="overflow-x-auto">
                     <table class="min-w-full bg-white">
                         <thead class="bg-gray-800 text-white">
@@ -180,7 +180,7 @@ include 'includes/header.php';
                                         <td class="text-right py-3 px-4"><?php echo htmlspecialchars($teacher['bio']); ?></td>
                                         <td class="text-right py-3 px-4">
                                             <a href="teachers.php?action=edit&id=<?php echo $teacher['id']; ?>" class="text-blue-500 hover:text-blue-700">تعديل</a>
-                                            <a href="teachers.php?action=delete&id=<?php echo $teacher['id']; ?>" class="text-red-500 hover:text-red-700 ml-4" onclick="return confirm('هل أنت متأكد من رغبتك في حذف هذا المعلم؟');">حذف</a>
+                                            <a href="teachers.php?action=delete&id=<?php echo $teacher['id']; ?>" class="text-red-500 hover:text-red-700 ml-4" onclick="return confirm('هل أنت متأكد من رغبتك في حذف هذا الأستاذ؟');">حذف</a>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
